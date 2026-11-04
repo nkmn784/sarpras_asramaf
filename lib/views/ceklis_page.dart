@@ -33,7 +33,11 @@ class _CeklisPageState extends State<CeklisPage> {
         title: const Text('Patroli Ceklis Harian'),
         backgroundColor: Colors.purple,
       ),
-      drawer: const AppDrawer(),
+      drawer: AppDrawer(
+        onSyncComplete: () {
+          _refreshData(); // Me-refresh layar otomatis saat sinkronisasi selesai
+        },
+      ),
       body: daftarCeklis.isEmpty
           ? const Center(child: Text('Belum ada data patroli hari ini.'))
           : ListView.builder(
@@ -54,9 +58,20 @@ class _CeklisPageState extends State<CeklisPage> {
                       color: isBerfungsi ? Colors.green : Colors.red,
                       size: 40,
                     ),
-                    title: Text(
-                      c.namaFasilitas,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            c.namaFasilitas,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Icon(
+                          c.isSynced == 1 ? Icons.cloud_done : Icons.cloud_off,
+                          color: c.isSynced == 1 ? Colors.green : Colors.grey,
+                          size: 20,
+                        ),
+                      ],
                     ),
                     subtitle: Text('Petugas: ${c.petugas} | Tgl: ${c.tanggal}'),
                     trailing: Text(

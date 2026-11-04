@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1089856585430",
+    "project_id": "sarpras-asramaf",
+    "storage_bucket": "sarpras-asramaf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1089856585430:android:978d624c40818e346e1377",
+        "android_client_info": {
+          "package_name": "com.example.sarpras_asramaf"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDrr731WDojvqN8fE2WeAu3ylGWhXLlO7c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

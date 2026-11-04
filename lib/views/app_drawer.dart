@@ -4,9 +4,13 @@ import 'home_page.dart';
 import 'peminjaman_page.dart';
 import 'pengaduan_page.dart';
 import 'ceklis_page.dart';
+import '../services/sync_service.dart';
 
 class AppDrawer extends StatelessWidget {
-  const AppDrawer({super.key});
+  // Menambahkan fungsi callback (penyambung) untuk me-refresh halaman utama
+  final VoidCallback? onSyncComplete;
+
+  const AppDrawer({super.key, this.onSyncComplete});
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +67,40 @@ class AppDrawer extends StatelessWidget {
                 context,
                 MaterialPageRoute(builder: (context) => const CeklisPage()),
               );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.cloud_upload, color: Colors.blueGrey),
+            title: const Text('Sinkronisasi ke Cloud'),
+            onTap: () async {
+              // 1. Tutup Drawer-nya agar layar tidak tertutup menu
+              Navigator.pop(context);
+
+              // 2. Tampilkan notifikasi loading
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Menyinkronkan data... mohon tunggu.'),
+                ),
+              );
+
+              // 3. Jalankan mesin sinkronisasi
+              await SyncService.syncSemuaData();
+
+              // 4. Setelah selesai, tampilkan notifikasi berhasil
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Sinkronisasi selesai!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+
+                // 5. Memicu halaman tempat Anda berada untuk REFRESH
+                if (onSyncComplete != null) {
+                  onSyncComplete!();
+                }
+              }
             },
           ),
         ],

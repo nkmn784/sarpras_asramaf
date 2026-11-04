@@ -1,4 +1,4 @@
-import 'dart:io'; // Tambahan wajib untuk membaca file foto dari memori HP
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 
@@ -35,7 +35,11 @@ class _PeminjamanPageState extends State<PeminjamanPage> {
         title: const Text('Buku Peminjaman'),
         backgroundColor: Colors.blue,
       ),
-      drawer: const AppDrawer(),
+      drawer: AppDrawer(
+        onSyncComplete: () {
+          _refreshData(); // Me-refresh layar otomatis saat sinkronisasi selesai
+        },
+      ),
       body: daftarPinjam.isEmpty
           ? const Center(child: Text('Belum ada data peminjaman alat.'))
           : ListView.builder(
@@ -44,8 +48,9 @@ class _PeminjamanPageState extends State<PeminjamanPage> {
                 final p = daftarPinjam[index];
                 final isDikembalikan = p.status == 'Dikembalikan';
 
-                // Mengecek apakah datanya berupa path lokasi foto (mengandung tanda miring '/')
-                bool isFoto = p.jaminanEkp.contains('/');
+                // LOGIKA BARU: Cek apakah foto ini URL online atau File lokal
+                bool isOnlineUrl = p.jaminanEkp.startsWith('http');
+                bool isLocalFile = p.jaminanEkp.contains('/') && !isOnlineUrl;
 
                 return Card(
                   margin: const EdgeInsets.symmetric(
@@ -53,39 +58,57 @@ class _PeminjamanPageState extends State<PeminjamanPage> {
                     vertical: 5,
                   ),
                   child: ListTile(
-                    // === BAGIAN FOTO KECIL (THUMBNAIL) ===
-                    leading: isFoto
+                    // === BAGIAN FOTO (Pintar membaca status online/offline) ===
+                    leading: (isOnlineUrl || isLocalFile)
                         ? GestureDetector(
                             onTap: () {
-                              // Memunculkan Pop-up foto ukuran besar saat thumbnail diklik
                               showDialog(
                                 context: context,
                                 builder: (_) => Dialog(
-                                  child: Image.file(
-                                    File(p.jaminanEkp),
-                                  ), // Memanggil wujud asli foto
+                                  // Menampilkan wujud asli di pop-up
+                                  child: isOnlineUrl
+                                      ? Image.network(p.jaminanEkp)
+                                      : Image.file(File(p.jaminanEkp)),
                                 ),
                               );
                             },
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(5),
-                              child: Image.file(
-                                File(p.jaminanEkp),
-                                width: 50,
-                                height: 50,
-                                fit: BoxFit.cover,
-                              ),
+                              // Menampilkan thumbnail
+                              child: isOnlineUrl
+                                  ? Image.network(
+                                      p.jaminanEkp,
+                                      width: 50,
+                                      height: 50,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Image.file(
+                                      File(p.jaminanEkp),
+                                      width: 50,
+                                      height: 50,
+                                      fit: BoxFit.cover,
+                                    ),
                             ),
                           )
-                        : const Icon(
-                            Icons.credit_card,
-                            size: 40,
-                          ), // Jika data lama masih teks
+                        : const Icon(Icons.credit_card, size: 40),
 
-                    title: Text(
-                      '${p.namaSantri} - ${p.namaBarang}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    // === BAGIAN JUDUL & IKON AWAN ===
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${p.namaSantri} - ${p.namaBarang}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Icon(
+                          p.isSynced == 1 ? Icons.cloud_done : Icons.cloud_off,
+                          color: p.isSynced == 1 ? Colors.green : Colors.grey,
+                          size: 20,
+                        ),
+                      ],
                     ),
+
                     subtitle: Text('Tgl: ${p.tanggalPinjam}'),
 
                     trailing: isDikembalikan

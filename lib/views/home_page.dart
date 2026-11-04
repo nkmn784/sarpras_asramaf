@@ -37,7 +37,11 @@ class _HomePageState extends State<HomePage> {
         title: const Text('Inventaris Asrama F'),
         backgroundColor: Colors.green,
       ),
-      drawer: const AppDrawer(),
+      drawer: AppDrawer(
+        onSyncComplete: () {
+          _refreshData(); // Me-refresh layar otomatis saat sinkronisasi selesai
+        },
+      ),
       body: daftarBarang.isEmpty
           ? const Center(child: Text('Belum ada data barang. Silakan tambah.'))
           : ListView.builder(

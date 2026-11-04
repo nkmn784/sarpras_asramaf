@@ -81,7 +81,11 @@ class _PengaduanPageState extends State<PengaduanPage> {
         title: const Text('Data Pengaduan'),
         backgroundColor: Colors.orange,
       ),
-      drawer: const AppDrawer(),
+      drawer: AppDrawer(
+        onSyncComplete: () {
+          _refreshData(); // Me-refresh layar otomatis saat sinkronisasi selesai
+        },
+      ),
       body: daftarPengaduan.isEmpty
           ? const Center(child: Text('Belum ada laporan kerusakan.'))
           : ListView.builder(
@@ -100,9 +104,20 @@ class _PengaduanPageState extends State<PengaduanPage> {
                     vertical: 5,
                   ),
                   child: ListTile(
-                    title: Text(
-                      p.fasilitasRusak,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            p.fasilitasRusak,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Icon(
+                          p.isSynced == 1 ? Icons.cloud_done : Icons.cloud_off,
+                          color: p.isSynced == 1 ? Colors.green : Colors.grey,
+                          size: 20,
+                        ),
+                      ],
                     ),
                     subtitle: Text(
                       'Pelapor: ${p.namaPelapor}\nTgl: ${p.tanggalLapor}',
