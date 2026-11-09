@@ -25,7 +25,9 @@ class _PeminjamanPageState extends State<PeminjamanPage> {
 
   Future<void> _refreshData() async {
     final data = await DatabaseHelper.instance.getAllPeminjaman();
-    setState(() => daftarPinjam = data);
+    setState(() {
+      daftarPinjam = data.map((e) => Peminjaman.fromMap(e)).toList();
+    });
   }
 
   @override
@@ -35,11 +37,7 @@ class _PeminjamanPageState extends State<PeminjamanPage> {
         title: const Text('Buku Peminjaman'),
         backgroundColor: Colors.blue,
       ),
-      drawer: AppDrawer(
-        onSyncComplete: () {
-          _refreshData(); // Me-refresh layar otomatis saat sinkronisasi selesai
-        },
-      ),
+      drawer: AppDrawer(onSyncComplete: _refreshData),
       body: daftarPinjam.isEmpty
           ? const Center(child: Text('Belum ada data peminjaman alat.'))
           : ListView.builder(
@@ -47,8 +45,6 @@ class _PeminjamanPageState extends State<PeminjamanPage> {
               itemBuilder: (context, index) {
                 final p = daftarPinjam[index];
                 final isDikembalikan = p.status == 'Dikembalikan';
-
-                // LOGIKA BARU: Cek apakah foto ini URL online atau File lokal
                 bool isOnlineUrl = p.jaminanEkp.startsWith('http');
                 bool isLocalFile = p.jaminanEkp.contains('/') && !isOnlineUrl;
 
@@ -58,14 +54,12 @@ class _PeminjamanPageState extends State<PeminjamanPage> {
                     vertical: 5,
                   ),
                   child: ListTile(
-                    // === BAGIAN FOTO (Pintar membaca status online/offline) ===
                     leading: (isOnlineUrl || isLocalFile)
                         ? GestureDetector(
                             onTap: () {
                               showDialog(
                                 context: context,
                                 builder: (_) => Dialog(
-                                  // Menampilkan wujud asli di pop-up
                                   child: isOnlineUrl
                                       ? Image.network(p.jaminanEkp)
                                       : Image.file(File(p.jaminanEkp)),
@@ -74,7 +68,6 @@ class _PeminjamanPageState extends State<PeminjamanPage> {
                             },
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(5),
-                              // Menampilkan thumbnail
                               child: isOnlineUrl
                                   ? Image.network(
                                       p.jaminanEkp,
@@ -91,8 +84,6 @@ class _PeminjamanPageState extends State<PeminjamanPage> {
                             ),
                           )
                         : const Icon(Icons.credit_card, size: 40),
-
-                    // === BAGIAN JUDUL & IKON AWAN ===
                     title: Row(
                       children: [
                         Expanded(
@@ -108,9 +99,7 @@ class _PeminjamanPageState extends State<PeminjamanPage> {
                         ),
                       ],
                     ),
-
                     subtitle: Text('Tgl: ${p.tanggalPinjam}'),
-
                     trailing: isDikembalikan
                         ? const Icon(Icons.check_circle, color: Colors.green)
                         : ElevatedButton(

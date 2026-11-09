@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
-import '../models/barang.dart';
-import 'tambah_barang_page.dart';
-import 'edit_barang_page.dart';
+import '../models/lokasi.dart';
 import 'app_drawer.dart';
+import 'isi_ruangan_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -14,129 +14,137 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  List<Barang> daftarBarang = [];
+  List<Lokasi> daftarLokasi = [];
 
   @override
   void initState() {
     super.initState();
-    _refreshData(); // Memanggil data dari SQLite saat aplikasi dibuka
+    _refreshData();
   }
 
-  // Fungsi untuk menarik data dari database lokal
   Future<void> _refreshData() async {
-    final data = await DatabaseHelper.instance.getAllBarang();
+    final data = await DatabaseHelper.instance.getAllLokasi();
     setState(() {
-      daftarBarang = data;
+      daftarLokasi = data.map((e) => Lokasi.fromMap(e)).toList();
     });
+  }
+
+  void _tambahLokasi() {
+    TextEditingController namaController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tambah Ruangan/Lokasi'),
+        content: TextField(
+          controller: namaController,
+          decoration: const InputDecoration(
+            hintText: 'Contoh: Masjid, Kamar 1, Gudang',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (namaController.text.isNotEmpty) {
+                final lokasiBaru = Lokasi(
+                  id: const Uuid().v4(),
+                  namaLokasi: namaController.text,
+                );
+                await DatabaseHelper.instance.insertLokasi(lokasiBaru.toMap());
+                if (context.mounted) Navigator.pop(context);
+                _refreshData();
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Inventaris Asrama F'),
+        title: const Text('Lokasi Inventaris Asrama'),
         backgroundColor: Colors.green,
       ),
-      drawer: AppDrawer(
-        onSyncComplete: () {
-          _refreshData(); // Me-refresh layar otomatis saat sinkronisasi selesai
-        },
-      ),
-      body: daftarBarang.isEmpty
-          ? const Center(child: Text('Belum ada data barang. Silakan tambah.'))
+      drawer: AppDrawer(onSyncComplete: _refreshData),
+      body: daftarLokasi.isEmpty
+          ? const Center(
+              child: Text('Belum ada lokasi. Tekan + untuk menambah ruangan.'),
+            )
           : ListView.builder(
-              itemCount: daftarBarang.length,
+              itemCount: daftarLokasi.length,
               itemBuilder: (context, index) {
-                final barang = daftarBarang[index];
+                final lokasi = daftarLokasi[index];
                 return Card(
                   margin: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 5,
                   ),
                   child: ListTile(
-                    title: Text(
-                      barang.namaBarang,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    leading: const Icon(
+                      Icons.meeting_room,
+                      color: Colors.green,
+                      size: 40,
                     ),
-                    subtitle: Text(
-                      'Total: ${barang.jumlah} | Baik: ${barang.kondisiBaik} | Rusak: ${barang.kondisiTidak}',
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            lokasi.namaLokasi,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          lokasi.isSynced == 1
+                              ? Icons.cloud_done
+                              : Icons.cloud_off,
+                          color: lokasi.isSynced == 1
+                              ? Colors.green
+                              : Colors.grey,
+                          size: 20,
+                        ),
+                      ],
                     ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Ikon Status Sinkronisasi
-                        Icon(
-                          barang.isSynced == 1
-                              ? Icons.cloud_done
-                              : Icons.cloud_off,
-                          color: barang.isSynced == 1
-                              ? Colors.green
-                              : Colors.grey,
-                        ),
-                        // Tombol Edit
-                        IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blue),
-                          onPressed: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    EditBarangPage(barang: barang),
-                              ),
-                            );
-                            _refreshData(); // Refresh data setelah diedit
-                          },
-                        ),
-                        // Tombol Hapus
                         IconButton(
                           icon: const Icon(Icons.delete, color: Colors.red),
                           onPressed: () async {
-                            // Konfirmasi dialog sebelum menghapus
-                            showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Hapus Barang?'),
-                                content: Text(
-                                  'Yakin ingin menghapus ${barang.namaBarang}?',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('Batal'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () async {
-                                      await DatabaseHelper.instance
-                                          .deleteBarang(barang.id!);
-                                      Navigator.pop(context);
-                                      _refreshData(); // Refresh layar setelah dihapus
-                                    },
-                                    child: const Text(
-                                      'Hapus',
-                                      style: TextStyle(color: Colors.red),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            await DatabaseHelper.instance.deleteLokasi(
+                              lokasi.id!,
                             );
+                            _refreshData();
                           },
                         ),
+                        const Icon(Icons.arrow_forward_ios, size: 16),
                       ],
                     ),
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => IsiRuanganPage(lokasi: lokasi),
+                        ),
+                      );
+                      _refreshData();
+                    },
                   ),
                 );
               },
             ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.green,
-        onPressed: () async {
-          // Pindah ke halaman tambah barang
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const TambahBarangPage()),
-          );
-          _refreshData(); // Refresh daftar setelah selesai menambah barang
-        },
+        onPressed: _tambahLokasi,
         child: const Icon(Icons.add),
       ),
     );

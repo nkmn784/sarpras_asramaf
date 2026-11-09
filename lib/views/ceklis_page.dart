@@ -23,41 +23,32 @@ class _CeklisPageState extends State<CeklisPage> {
 
   Future<void> _refreshData() async {
     final data = await DatabaseHelper.instance.getAllCeklis();
-    setState(() => daftarCeklis = data);
+    setState(() {
+      daftarCeklis = data.map((e) => Ceklis.fromMap(e)).toList();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Patroli Ceklis Harian'),
+        title: const Text('Ceklis Patroli Harian'),
         backgroundColor: Colors.purple,
       ),
-      drawer: AppDrawer(
-        onSyncComplete: () {
-          _refreshData(); // Me-refresh layar otomatis saat sinkronisasi selesai
-        },
-      ),
+      drawer: AppDrawer(onSyncComplete: _refreshData),
       body: daftarCeklis.isEmpty
-          ? const Center(child: Text('Belum ada data patroli hari ini.'))
+          ? const Center(child: Text('Belum ada data ceklis hari ini.'))
           : ListView.builder(
               itemCount: daftarCeklis.length,
               itemBuilder: (context, index) {
                 final c = daftarCeklis[index];
-                final isBerfungsi =
-                    c.kondisi == 1; // 1 = Berfungsi, 0 = Bermasalah
-
                 return Card(
                   margin: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 5,
                   ),
                   child: ListTile(
-                    leading: Icon(
-                      isBerfungsi ? Icons.check_circle : Icons.cancel,
-                      color: isBerfungsi ? Colors.green : Colors.red,
-                      size: 40,
-                    ),
+                    leading: const Icon(Icons.check_box, color: Colors.purple),
                     title: Row(
                       children: [
                         Expanded(
@@ -73,13 +64,8 @@ class _CeklisPageState extends State<CeklisPage> {
                         ),
                       ],
                     ),
-                    subtitle: Text('Petugas: ${c.petugas} | Tgl: ${c.tanggal}'),
-                    trailing: Text(
-                      isBerfungsi ? "Berfungsi" : "Bermasalah",
-                      style: TextStyle(
-                        color: isBerfungsi ? Colors.green : Colors.red,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    subtitle: Text(
+                      'Tgl: ${c.tanggal} | Oleh: ${c.petugas}\nKondisi: ${c.kondisi}',
                     ),
                   ),
                 );
@@ -94,7 +80,7 @@ class _CeklisPageState extends State<CeklisPage> {
           );
           _refreshData();
         },
-        child: const Icon(Icons.add_task),
+        child: const Icon(Icons.add),
       ),
     );
   }

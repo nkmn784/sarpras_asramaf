@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
-import '../models/pengaduan.dart';
 
 class TambahPengaduanPage extends StatefulWidget {
   const TambahPengaduanPage({super.key});
@@ -12,22 +11,8 @@ class TambahPengaduanPage extends StatefulWidget {
 }
 
 class _TambahPengaduanPageState extends State<TambahPengaduanPage> {
-  final _pelaporController = TextEditingController();
-  final _fasilitasController = TextEditingController();
-
-  Future<void> _simpanPengaduan() async {
-    const uuid = Uuid();
-    final pengaduanBaru = Pengaduan(
-      id: uuid.v4(),
-      namaPelapor: _pelaporController.text,
-      fasilitasRusak: _fasilitasController.text,
-      tanggalLapor: DateTime.now().toString().substring(0, 10),
-      isSynced: 0,
-    );
-
-    await DatabaseHelper.instance.insertPengaduan(pengaduanBaru);
-    if (mounted) Navigator.pop(context);
-  }
+  final _namaPelaporController = TextEditingController();
+  final _fasilitasRusakController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -38,27 +23,45 @@ class _TambahPengaduanPageState extends State<TambahPengaduanPage> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: ListView(
+        child: Column(
           children: [
             TextField(
-              controller: _pelaporController,
-              decoration: const InputDecoration(
-                labelText: 'Nama Pelapor (Santri/Wali)',
-              ),
+              controller: _namaPelaporController,
+              decoration: const InputDecoration(labelText: 'Nama Pelapor'),
             ),
+            const SizedBox(height: 10),
             TextField(
-              controller: _fasilitasController,
+              controller: _fasilitasRusakController,
               decoration: const InputDecoration(
-                labelText:
-                    'Deskripsi Kerusakan (Misal: Keran air asrama F bocor)',
+                labelText: 'Fasilitas yang Rusak (Deskripsikan)',
               ),
-              maxLines: 3,
             ),
             const SizedBox(height: 30),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-              onPressed: _simpanPengaduan,
-              child: const Text('Simpan Laporan'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                minimumSize: const Size.fromHeight(50),
+              ),
+              onPressed: () async {
+                if (_namaPelaporController.text.isNotEmpty &&
+                    _fasilitasRusakController.text.isNotEmpty) {
+                  final data = {
+                    'id': const Uuid().v4(),
+                    'nama_pelapor': _namaPelaporController.text,
+                    'fasilitas_rusak': _fasilitasRusakController.text,
+                    'tanggal_lapor': DateTime.now().toString().split(' ')[0],
+                    'status': 'Dilaporkan',
+                    'is_synced': 0,
+                  };
+                  final db = await DatabaseHelper.instance.database;
+                  await db.insert('pengaduan', data);
+                  if (mounted) Navigator.pop(context);
+                }
+              },
+              child: const Text(
+                'Kirim Laporan',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
             ),
           ],
         ),

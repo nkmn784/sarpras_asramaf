@@ -23,87 +23,37 @@ class _PengaduanPageState extends State<PengaduanPage> {
 
   Future<void> _refreshData() async {
     final data = await DatabaseHelper.instance.getAllPengaduan();
-    setState(() => daftarPengaduan = data);
-  }
-
-  // Fungsi untuk mengubah status lewat Pop-up
-  Future<void> _ubahStatus(Pengaduan p) async {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Update Status Penanganan'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('Dikerjakan Biro Asrama'),
-              onTap: () async {
-                await DatabaseHelper.instance.updateStatusPengaduan(
-                  p.id!,
-                  'Dikerjakan Biro',
-                );
-                Navigator.pop(context);
-                _refreshData();
-              },
-            ),
-            ListTile(
-              title: const Text('Diserahkan ke Pusat'),
-              onTap: () async {
-                await DatabaseHelper.instance.updateStatusPengaduan(
-                  p.id!,
-                  'Diserahkan Pusat',
-                );
-                Navigator.pop(context);
-                _refreshData();
-              },
-            ),
-            ListTile(
-              title: const Text('Selesai Diperbaiki'),
-              onTap: () async {
-                await DatabaseHelper.instance.updateStatusPengaduan(
-                  p.id!,
-                  'Selesai',
-                );
-                Navigator.pop(context);
-                _refreshData();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
+    setState(() {
+      daftarPengaduan = data.map((e) => Pengaduan.fromMap(e)).toList();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Data Pengaduan'),
+        title: const Text('Pengaduan Kerusakan'),
         backgroundColor: Colors.orange,
       ),
-      drawer: AppDrawer(
-        onSyncComplete: () {
-          _refreshData(); // Me-refresh layar otomatis saat sinkronisasi selesai
-        },
-      ),
+      drawer: AppDrawer(onSyncComplete: _refreshData),
       body: daftarPengaduan.isEmpty
           ? const Center(child: Text('Belum ada laporan kerusakan.'))
           : ListView.builder(
               itemCount: daftarPengaduan.length,
               itemBuilder: (context, index) {
                 final p = daftarPengaduan[index];
-                // Menentukan warna badge berdasarkan status
-                Color statusColor = Colors.grey;
-                if (p.status == 'Dikerjakan Biro') statusColor = Colors.blue;
-                if (p.status == 'Diserahkan Pusat') statusColor = Colors.red;
-                if (p.status == 'Selesai') statusColor = Colors.green;
-
+                final isSelesai = p.status == 'Selesai';
                 return Card(
                   margin: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 5,
                   ),
                   child: ListTile(
+                    leading: const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.orange,
+                      size: 40,
+                    ),
                     title: Row(
                       children: [
                         Expanded(
@@ -120,28 +70,21 @@ class _PengaduanPageState extends State<PengaduanPage> {
                       ],
                     ),
                     subtitle: Text(
-                      'Pelapor: ${p.namaPelapor}\nTgl: ${p.tanggalLapor}',
+                      'Tgl: ${p.tanggalLapor}\nPelapor: ${p.namaPelapor}',
                     ),
-                    trailing: InkWell(
-                      onTap: () => _ubahStatus(p),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusColor,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          p.status,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
+                    trailing: isSelesai
+                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        : ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                            ),
+                            onPressed: () async {
+                              await DatabaseHelper.instance
+                                  .updateStatusPengaduan(p.id!, 'Selesai');
+                              _refreshData();
+                            },
+                            child: const Text('Tandai Selesai'),
                           ),
-                        ),
-                      ),
-                    ),
                   ),
                 );
               },

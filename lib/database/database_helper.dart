@@ -1,13 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
-import '../models/barang.dart';
-import '../models/peminjaman.dart';
-import '../models/pengaduan.dart';
-import '../models/ceklis.dart';
-
 class DatabaseHelper {
-  // Membuat Singleton agar aplikasi hanya menggunakan satu koneksi database yang sama
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
@@ -15,179 +9,178 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('sarpras_asramaf.db');
+    _database = await _initDB('sarpras_asrama.db');
     return _database!;
   }
 
   Future<Database> _initDB(String filePath) async {
-    // Mencari lokasi memori internal perangkat yang aman untuk menyimpan file .db
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    // Membuka database, jika belum ada maka akan menjalankan fungsi _createDB
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(
+      path,
+      version: 2,
+      onCreate: _createDB,
+      onUpgrade: _onUpgrade,
+    );
   }
 
   Future _createDB(Database db, int version) async {
-    // Membuat tabel inventaris (yang sudah ada)
     await db.execute('''
-    CREATE TABLE inventaris (
-      id TEXT PRIMARY KEY,
-      nama_barang TEXT NOT NULL,
-      jumlah INTEGER NOT NULL,
-      kondisi_baik INTEGER NOT NULL,
-      kondisi_tidak INTEGER NOT NULL,
-      is_synced INTEGER NOT NULL
-    )
+      CREATE TABLE lokasi (
+        id TEXT PRIMARY KEY,
+        nama_lokasi TEXT NOT NULL,
+        is_synced INTEGER NOT NULL DEFAULT 0
+      )
     ''');
 
-    // MENGAPLIKASIKAN TABEL BARU: Membuat tabel peminjaman
     await db.execute('''
-    CREATE TABLE peminjaman (
-      id TEXT PRIMARY KEY,
-      nama_santri TEXT NOT NULL,
-      nama_barang TEXT NOT NULL,
-      tanggal_pinjam TEXT NOT NULL,
-      jaminan_ekp TEXT NOT NULL,
-      status TEXT NOT NULL,
-      is_synced INTEGER NOT NULL
-    )
+      CREATE TABLE item_inventaris (
+        id TEXT PRIMARY KEY,
+        id_lokasi TEXT NOT NULL,
+        nama_barang TEXT NOT NULL,
+        kategori TEXT NOT NULL,
+        jumlah INTEGER NOT NULL DEFAULT 1,
+        kondisi TEXT NOT NULL,
+        keterangan TEXT,
+        is_synced INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (id_lokasi) REFERENCES lokasi (id) ON DELETE CASCADE
+      )
     ''');
-    // MENGAPLIKASIKAN TABEL BARU: Membuat tabel pengaduan
+
     await db.execute('''
-    CREATE TABLE pengaduan (
-      id TEXT PRIMARY KEY,
-      nama_pelapor TEXT NOT NULL,
-      fasilitas_rusak TEXT NOT NULL,
-      tanggal_lapor TEXT NOT NULL,
-      status TEXT NOT NULL,
-      is_synced INTEGER NOT NULL
-    )
+      CREATE TABLE peminjaman (
+        id TEXT PRIMARY KEY,
+        nama_santri TEXT NOT NULL,
+        nama_barang TEXT NOT NULL,
+        tanggal_pinjam TEXT NOT NULL,
+        jaminan_ekp TEXT NOT NULL,
+        status TEXT NOT NULL,
+        is_synced INTEGER NOT NULL DEFAULT 0
+      )
     ''');
-    // MENGAPLIKASIKAN TABEL BARU: Membuat tabel ceklis harian
+
     await db.execute('''
-    CREATE TABLE ceklis (
-      id TEXT PRIMARY KEY,
-      tanggal TEXT NOT NULL,
-      petugas TEXT NOT NULL,
-      nama_fasilitas TEXT NOT NULL,
-      kondisi INTEGER NOT NULL,
-      is_synced INTEGER NOT NULL
-    )
+      CREATE TABLE pengaduan (
+        id TEXT PRIMARY KEY,
+        nama_pelapor TEXT NOT NULL,
+        fasilitas_rusak TEXT NOT NULL,
+        tanggal_lapor TEXT NOT NULL,
+        status TEXT NOT NULL,
+        is_synced INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE ceklis (
+        id TEXT PRIMARY KEY,
+        tanggal TEXT NOT NULL,
+        petugas TEXT NOT NULL,
+        nama_fasilitas TEXT NOT NULL,
+        kondisi TEXT NOT NULL,
+        is_synced INTEGER NOT NULL DEFAULT 0
+      )
     ''');
   }
 
-  // Fungsi untuk menambah data barang ke database (CREATE)
-  Future<void> insertBarang(Barang barang) async {
+  Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('DROP TABLE IF EXISTS inventaris');
+      await _createDB(db, newVersion);
+    }
+  }
+
+  // ================= CRUD LOKASI =================
+  Future<int> insertLokasi(Map<String, dynamic> row) async {
     final db = await instance.database;
-    await db.insert(
-      'inventaris',
-      barang.toMap(),
-      conflictAlgorithm:
-          ConflictAlgorithm.replace, // Menimpa data jika ada ID yang sama
-    );
+    return await db.insert('lokasi', row);
   }
 
-  // Fungsi untuk menarik seluruh data barang dari database (READ)
-  Future<List<Barang>> getAllBarang() async {
+  Future<List> getAllLokasi() async {
+    final db = await instance.database;
+    final result = await db.query('lokasi', orderBy: 'nama_lokasi ASC');
+    return result.map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  Future<int> deleteLokasi(String id) async {
+    final db = await instance.database;
+    await db.delete('item_inventaris', where: 'id_lokasi = ?', whereArgs: [id]);
+    return await db.delete('lokasi', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ================= CRUD ITEM INVENTARIS =================
+  Future<int> insertItem(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.insert('item_inventaris', row);
+  }
+
+  Future<List> getItemByLokasiAndKategori(
+    String idLokasi,
+    String kategori,
+  ) async {
     final db = await instance.database;
     final result = await db.query(
-      'inventaris',
-    ); // Memanggil isi tabel inventaris
-
-    // Mengubah data mentah dari database kembali menjadi List<Barang>
-    return result.map((map) => Barang.fromMap(map)).toList();
-  }
-
-  // Fungsi untuk mengedit data barang (UPDATE)
-  Future<void> updateBarang(Barang barang) async {
-    final db = await instance.database;
-    await db.update(
-      'inventaris',
-      barang.toMap(),
-      where: 'id = ?', // Mencari barang berdasarkan ID-nya
-      whereArgs: [barang.id],
+      'item_inventaris',
+      where: 'id_lokasi = ? AND kategori = ?',
+      whereArgs: [idLokasi, kategori],
+      orderBy: 'nama_barang ASC',
     );
+    return result.map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
-  // Fungsi untuk menghapus data barang (DELETE)
-  Future<void> deleteBarang(String id) async {
+  Future<int> updateItem(String id, Map<String, dynamic> row) async {
     final db = await instance.database;
-    await db.delete('inventaris', where: 'id = ?', whereArgs: [id]);
-  }
-  // ================= BAGIAN PEMINJAMAN =================
-
-  // 1. Simpan data peminjaman baru
-  Future<void> insertPeminjaman(Peminjaman peminjaman) async {
-    final db = await instance.database;
-    await db.insert(
-      'peminjaman',
-      peminjaman.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  // 2. Tampilkan semua riwayat peminjaman
-  Future<List<Peminjaman>> getAllPeminjaman() async {
-    final db = await instance.database;
-    final result = await db.query('peminjaman', orderBy: 'tanggal_pinjam DESC');
-    return result.map((map) => Peminjaman.fromMap(map)).toList();
-  }
-
-  // 3. Update status peminjaman (Misal saat santri mengembalikan barang)
-  Future<void> updateStatusPeminjaman(String id, String statusBaru) async {
-    final db = await instance.database;
-    await db.update(
-      'peminjaman',
-      {
-        'status': statusBaru,
-        'is_synced': 0,
-      }, // is_synced 0 agar disinkronkan lagi ke cloud
+    return await db.update(
+      'item_inventaris',
+      row,
       where: 'id = ?',
       whereArgs: [id],
     );
   }
-  // ================= BAGIAN PENGADUAN =================
 
-  Future<void> insertPengaduan(Pengaduan pengaduan) async {
+  Future<int> deleteItem(String id) async {
     final db = await instance.database;
-    await db.insert(
-      'pengaduan',
-      pengaduan.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
+    return await db.delete('item_inventaris', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ================= CRUD PEMINJAMAN =================
+  Future<List> getAllPeminjaman() async {
+    final db = await instance.database;
+    final result = await db.query('peminjaman', orderBy: 'tanggal_pinjam DESC');
+    return result.map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  Future<int> updateStatusPeminjaman(String id, String statusBaru) async {
+    final db = await instance.database;
+    return await db.update(
+      'peminjaman',
+      {'status': statusBaru, 'is_synced': 0},
+      where: 'id = ?',
+      whereArgs: [id],
     );
   }
 
-  Future<List<Pengaduan>> getAllPengaduan() async {
+  // ================= CRUD PENGADUAN =================
+  Future<List> getAllPengaduan() async {
     final db = await instance.database;
     final result = await db.query('pengaduan', orderBy: 'tanggal_lapor DESC');
-    return result.map((map) => Pengaduan.fromMap(map)).toList();
+    return result.map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
-  Future<void> updateStatusPengaduan(String id, String statusBaru) async {
+  Future<int> updateStatusPengaduan(String id, String statusBaru) async {
     final db = await instance.database;
-    await db.update(
+    return await db.update(
       'pengaduan',
       {'status': statusBaru, 'is_synced': 0},
       where: 'id = ?',
       whereArgs: [id],
     );
   }
-  // ================= BAGIAN CEKLIS HARIAN =================
 
-  Future<void> insertCeklis(Ceklis ceklis) async {
+  // ================= CRUD CEKLIS =================
+  Future<List> getAllCeklis() async {
     final db = await instance.database;
-    await db.insert(
-      'ceklis',
-      ceklis.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  Future<List<Ceklis>> getAllCeklis() async {
-    final db = await instance.database;
-    // Mengurutkan dari tanggal pengecekan terbaru
     final result = await db.query('ceklis', orderBy: 'tanggal DESC');
-    return result.map((map) => Ceklis.fromMap(map)).toList();
+    return result.map((e) => Map<String, dynamic>.from(e)).toList();
   }
 }
