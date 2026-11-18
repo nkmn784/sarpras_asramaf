@@ -70,7 +70,41 @@ class SyncService {
       }
     }
 
-    // 3. SYNC BUKU PEMINJAMAN (FOTO TO CLOUDINARY)
+    // 3. SYNC INSPEKSI RUANGAN & DETAIL BARANG
+    final unsyncedInspeksi = await db.query(
+      'inspeksi',
+      where: 'is_synced = ?',
+      whereArgs: [0],
+    );
+    for (var map in unsyncedInspeksi) {
+      try {
+        final detailList = await db.query(
+          'inspeksi_detail',
+          where: 'id_inspeksi = ?',
+          whereArgs: [map['id']],
+        );
+        await _firestore.collection('inspeksi').doc(map['id'] as String).set({
+          'id_lokasi': map['id_lokasi'],
+          'nama_lokasi': map['nama_lokasi'],
+          'tanggal': map['tanggal'],
+          'petugas': map['petugas'],
+          'kondisi_ruangan': map['kondisi_ruangan'],
+          'catatan': map['catatan'],
+          'detail_barang': detailList,
+          'terakhir_update': FieldValue.serverTimestamp(),
+        });
+        await db.update(
+          'inspeksi',
+          {'is_synced': 1},
+          where: 'id = ?',
+          whereArgs: [map['id']],
+        );
+      } catch (e) {
+        print('Gagal sync Inspeksi: $e');
+      }
+    }
+
+    // 4. SYNC BUKU PEMINJAMAN
     final unsyncedPinjam = await db.query(
       'peminjaman',
       where: 'is_synced = ?',
@@ -78,7 +112,7 @@ class SyncService {
     );
     for (var map in unsyncedPinjam) {
       try {
-        String jaminan = map['jaminan_ekp'] as String;
+        String jaminan = (map['jaminan_ekp'] ?? '').toString();
         if (jaminan.contains('/') && !jaminan.startsWith('http')) {
           final urlCloudinary = await CloudinaryService.uploadFoto(
             File(jaminan),
@@ -109,55 +143,46 @@ class SyncService {
       }
     }
 
-    // 4. SYNC PENGADUAN
-    final unsyncedAduan = await db.query(
-      'pengaduan',
+    // 5. SYNC LAPORAN KERUSAKAN & USULAN WARGA
+    final unsyncedLaporan = await db.query(
+      'laporan_warga',
       where: 'is_synced = ?',
       whereArgs: [0],
     );
-    for (var map in unsyncedAduan) {
+    for (var map in unsyncedLaporan) {
       try {
-        await _firestore.collection('pengaduan').doc(map['id'] as String).set({
-          'nama_pelapor': map['nama_pelapor'],
-          'fasilitas_rusak': map['fasilitas_rusak'],
-          'tanggal_lapor': map['tanggal_lapor'],
-          'status': map['status'],
-          'terakhir_update': FieldValue.serverTimestamp(),
-        });
-        await db.update(
-          'pengaduan',
-          {'is_synced': 1},
-          where: 'id = ?',
-          whereArgs: [map['id']],
-        );
-      } catch (e) {
-        print('Gagal sync Pengaduan: $e');
-      }
-    }
+        String foto = (map['foto_bukti'] ?? '').toString();
+        if (foto.contains('/') && !foto.startsWith('http')) {
+          final urlCloudinary = await CloudinaryService.uploadFoto(File(foto));
+          if (urlCloudinary != null) foto = urlCloudinary;
+        }
 
-    // 5. SYNC CEKLIS
-    final unsyncedCeklis = await db.query(
-      'ceklis',
-      where: 'is_synced = ?',
-      whereArgs: [0],
-    );
-    for (var map in unsyncedCeklis) {
-      try {
-        await _firestore.collection('ceklis').doc(map['id'] as String).set({
-          'tanggal': map['tanggal'],
-          'petugas': map['petugas'],
-          'nama_fasilitas': map['nama_fasilitas'],
-          'kondisi': map['kondisi'],
-          'terakhir_update': FieldValue.serverTimestamp(),
-        });
+        await _firestore
+            .collection('laporan_warga')
+            .doc(map['id'] as String)
+            .set({
+              'jenis_laporan': map['jenis_laporan'],
+              'nama_pelapor': map['nama_pelapor'],
+              'peran_pelapor': map['peran_pelapor'],
+              'nama_lokasi': map['nama_lokasi'],
+              'nama_barang': map['nama_barang'],
+              'jumlah': map['jumlah'],
+              'deskripsi': map['deskripsi'],
+              'foto_bukti': foto,
+              'tanggal_lapor': map['tanggal_lapor'],
+              'status': map['status'],
+              'tanggapan_sarpras': map['tanggapan_sarpras'],
+              'terakhir_update': FieldValue.serverTimestamp(),
+            });
+
         await db.update(
-          'ceklis',
-          {'is_synced': 1},
+          'laporan_warga',
+          {'is_synced': 1, 'foto_bukti': foto},
           where: 'id = ?',
           whereArgs: [map['id']],
         );
       } catch (e) {
-        print('Gagal sync Ceklis: $e');
+        print('Gagal sync Laporan Warga: $e');
       }
     }
   }

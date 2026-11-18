@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'home_page.dart';
-import 'ceklis_page.dart';
+import 'inspeksi_page.dart';
 import 'peminjaman_page.dart';
 import 'pengaduan_page.dart';
 
@@ -21,11 +21,14 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     final List<Widget> pages = widget.isAdminSarpras
         ? const [
             HomePage(isAdminSarpras: true),
-            CeklisPage(),
+            InspeksiPage(),
             PeminjamanPage(),
-            PengaduanPage(),
+            PengaduanPage(isAdminSarpras: true),
           ]
-        : const [HomePage(isAdminSarpras: false), PengaduanPage()];
+        : const [
+            HomePage(isAdminSarpras: false),
+            PengaduanPage(isAdminSarpras: false),
+          ];
 
     final List<NavigationDestination> destinations = widget.isAdminSarpras
         ? const [

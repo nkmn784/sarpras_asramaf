@@ -273,6 +273,78 @@ class DatabaseHelper {
     return await db.delete('item_inventaris', where: 'id = ?', whereArgs: [id]);
   }
 
+  // ================= CRUD INSPEKSI RUANGAN =================
+  Future<void> simpanInspeksiLengkap({
+    required BarisData headerInspeksi,
+    required List<BarisData> daftarDetail,
+  }) async {
+    final db = await instance.database;
+    await db.transaction((txn) async {
+      await txn.insert('inspeksi', headerInspeksi);
+
+      for (var detail in daftarDetail) {
+        await txn.insert('inspeksi_detail', detail);
+        await txn.update(
+          'item_inventaris',
+          {'kondisi': detail['kondisi_hasil'], 'is_synced': 0},
+          where: 'id = ?',
+          whereArgs: [detail['id_item']],
+        );
+      }
+    });
+  }
+
+  Future<List<BarisData>> getAllInspeksi() async {
+    final db = await instance.database;
+    final result = await db.query('inspeksi', orderBy: 'tanggal DESC');
+    return result.map((e) => BarisData.from(e)).toList();
+  }
+
+  Future<List<BarisData>> getDetailInspeksi(String idInspeksi) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'inspeksi_detail',
+      where: 'id_inspeksi = ?',
+      whereArgs: [idInspeksi],
+      orderBy: 'kode_unik ASC',
+    );
+    return result.map((e) => BarisData.from(e)).toList();
+  }
+
+  // ================= CRUD LAPORAN KERUSAKAN & USULAN WARGA =================
+  Future<int> insertLaporanWarga(BarisData row) async {
+    final db = await instance.database;
+    return await db.insert('laporan_warga', row);
+  }
+
+  Future<List<BarisData>> getAllLaporanWarga() async {
+    final db = await instance.database;
+    final result = await db.query(
+      'laporan_warga',
+      orderBy: 'tanggal_lapor DESC',
+    );
+    return result.map((e) => BarisData.from(e)).toList();
+  }
+
+  Future<int> updateTindakLanjutLaporan(
+    String id,
+    String statusBaru,
+    String tanggapan,
+  ) async {
+    final db = await instance.database;
+    return await db.update(
+      'laporan_warga',
+      {'status': statusBaru, 'tanggapan_sarpras': tanggapan, 'is_synced': 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> deleteLaporanWarga(String id) async {
+    final db = await instance.database;
+    return await db.delete('laporan_warga', where: 'id = ?', whereArgs: [id]);
+  }
+
   // ================= STATISTIK DASHBOARD =================
   Future<StatistikData> getRingkasanSarpras() async {
     final db = await instance.database;
@@ -309,6 +381,11 @@ class DatabaseHelper {
   }
 
   // ================= CRUD PEMINJAMAN =================
+  Future<int> insertPeminjaman(BarisData row) async {
+    final db = await instance.database;
+    return await db.insert('peminjaman', row);
+  }
+
   Future<List<BarisData>> getAllPeminjaman() async {
     final db = await instance.database;
     final result = await db.query('peminjaman', orderBy: 'tanggal_pinjam DESC');
@@ -325,7 +402,12 @@ class DatabaseHelper {
     );
   }
 
-  // ================= CRUD PENGADUAN & CEKLIS =================
+  Future<int> deletePeminjaman(String id) async {
+    final db = await instance.database;
+    return await db.delete('peminjaman', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ================= CRUD PENGADUAN & CEKLIS LEGACY =================
   Future<List<BarisData>> getAllPengaduan() async {
     final db = await instance.database;
     final result = await db.query('pengaduan', orderBy: 'tanggal_lapor DESC');
