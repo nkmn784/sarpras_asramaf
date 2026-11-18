@@ -21,7 +21,9 @@ class SyncService {
     for (var map in unsyncedLokasi) {
       try {
         await _firestore.collection('lokasi').doc(map['id'] as String).set({
+          'kode_ruangan': map['kode_ruangan'],
           'nama_lokasi': map['nama_lokasi'],
+          'penanggung_jawab': map['penanggung_jawab'],
           'terakhir_update': FieldValue.serverTimestamp(),
         });
         await db.update(
@@ -48,8 +50,10 @@ class SyncService {
             .doc(map['id'] as String)
             .set({
               'id_lokasi': map['id_lokasi'],
+              'kode_unik': map['kode_unik'],
               'nama_barang': map['nama_barang'],
               'kategori': map['kategori'],
+              'merek': map['merek'],
               'jumlah': map['jumlah'],
               'kondisi': map['kondisi'],
               'keterangan': map['keterangan'],
@@ -84,8 +88,11 @@ class SyncService {
 
         await _firestore.collection('peminjaman').doc(map['id'] as String).set({
           'nama_santri': map['nama_santri'],
+          'kamar_santri': map['kamar_santri'],
+          'kode_unik': map['kode_unik'],
           'nama_barang': map['nama_barang'],
           'tanggal_pinjam': map['tanggal_pinjam'],
+          'batas_kembali': map['batas_kembali'],
           'jaminan_ekp': jaminan,
           'status': map['status'],
           'terakhir_update': FieldValue.serverTimestamp(),
