@@ -29,6 +29,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _refreshData();
+    _jalankanSync(senyap: true);
   }
 
   Future<void> _refreshData() async {
@@ -41,15 +42,20 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  Future<void> _jalankanSync() async {
+  Future<void> _jalankanSync({bool senyap = false}) async {
+    if (_isSyncing) return;
     setState(() => _isSyncing = true);
     await SyncService.syncSemuaData();
     await _refreshData();
     if (!mounted) return;
     setState(() => _isSyncing = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sinkronisasi data ke Cloud selesai!')),
-    );
+    if (!senyap) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Data berhasil disinkronkan dengan Cloud!'),
+        ),
+      );
+    }
   }
 
   void _tambahLokasi() {
@@ -138,21 +144,20 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         actions: [
-          if (widget.isAdminSarpras)
-            IconButton(
-              tooltip: 'Sinkronisasi Cloud',
-              onPressed: _isSyncing ? null : _jalankanSync,
-              icon: _isSyncing
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(
-                      Icons.cloud_sync_rounded,
-                      color: Color(0xFF0F766E),
-                    ),
-            ),
+          IconButton(
+            tooltip: 'Sinkronisasi Cloud',
+            onPressed: _isSyncing ? null : () => _jalankanSync(senyap: false),
+            icon: _isSyncing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(
+                    Icons.cloud_sync_rounded,
+                    color: Color(0xFF0F766E),
+                  ),
+          ),
           IconButton(
             tooltip: 'Ganti Peran',
             icon: const Icon(Icons.swap_horiz_rounded),
@@ -166,7 +171,7 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _refreshData,
+        onRefresh: () => _jalankanSync(senyap: false),
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -243,8 +248,8 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 12),
                     Text(
                       widget.isAdminSarpras
-                          ? 'Belum ada data ruangan.\nTekan tombol + Tambah Ruangan di bawah.'
-                          : 'Belum ada data ruangan yang didaftarkan pengurus.',
+                          ? 'Belum ada data ruangan.\nTekan tombol + Tambah Ruangan atau tarik layar ke bawah untuk Sync.'
+                          : 'Belum ada data ruangan.\nTekan ikon awan di kanan atas untuk memuat data terbaru.',
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: Color(0xFF64748B)),
                     ),
@@ -327,8 +332,13 @@ class _HomePageState extends State<HomePage> {
                                   color: Colors.redAccent,
                                 ),
                                 onPressed: () async {
+                                  final idHapus = lokasi.id!;
                                   await DatabaseHelper.instance.deleteLokasi(
-                                    lokasi.id!,
+                                    idHapus,
+                                  );
+                                  await SyncService.hapusDokumenCloud(
+                                    'lokasi',
+                                    idHapus,
                                   );
                                   _refreshData();
                                 },

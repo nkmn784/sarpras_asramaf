@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../database/database_helper.dart';
 import '../models/lokasi.dart';
 import '../models/item_inventaris.dart';
+import '../services/sync_service.dart';
 
 class TambahPengaduanPage extends StatefulWidget {
   const TambahPengaduanPage({super.key});
@@ -129,6 +130,14 @@ class _TambahPengaduanPageState extends State<TambahPengaduanPage> {
 
     await DatabaseHelper.instance.insertLaporanWarga(row);
 
+    // Otomatis kirim ke Cloud jika perangkat terhubung ke internet
+    try {
+      await SyncService.syncSemuaData().timeout(
+        const Duration(seconds: 8),
+        onTimeout: () {},
+      );
+    } catch (_) {}
+
     if (!mounted) return;
     setState(() => _isSaving = false);
     Navigator.pop(context, true);
@@ -157,7 +166,6 @@ class _TambahPengaduanPageState extends State<TambahPengaduanPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Pemilih Jenis Formulir
           Row(
             children: [
               Expanded(

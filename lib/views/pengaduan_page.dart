@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../database/database_helper.dart';
+import '../services/sync_service.dart';
 import 'tambah_pengaduan_page.dart';
 
 class PengaduanPage extends StatefulWidget {
@@ -16,6 +17,7 @@ class PengaduanPage extends StatefulWidget {
 class _PengaduanPageState extends State<PengaduanPage> {
   List<BarisData> daftarLaporan = [];
   String _filterJenis = 'Semua';
+  bool _isSyncing = false;
 
   @override
   void initState() {
@@ -29,6 +31,18 @@ class _PengaduanPageState extends State<PengaduanPage> {
     setState(() {
       daftarLaporan = data;
     });
+  }
+
+  Future<void> _jalankanSync() async {
+    if (_isSyncing) return;
+    setState(() => _isSyncing = true);
+    await SyncService.syncSemuaData();
+    await _refreshData();
+    if (!mounted) return;
+    setState(() => _isSyncing = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Daftar laporan diperbarui dari Cloud!')),
+    );
   }
 
   void _tindakLanjutDialog(BarisData item) {
@@ -89,7 +103,8 @@ class _PengaduanPageState extends State<PengaduanPage> {
                   tanggapanController.text.trim(),
                 );
                 if (context.mounted) Navigator.pop(context);
-                _refreshData();
+                await _refreshData();
+                SyncService.syncSemuaData();
               },
               child: const Text('Simpan'),
             ),
@@ -163,6 +178,22 @@ class _PengaduanPageState extends State<PengaduanPage> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Perbarui Laporan',
+            onPressed: _isSyncing ? null : _jalankanSync,
+            icon: _isSyncing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(
+                    Icons.cloud_sync_rounded,
+                    color: Color(0xFF0F766E),
+                  ),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -189,184 +220,195 @@ class _PengaduanPageState extends State<PengaduanPage> {
             ),
           ),
           Expanded(
-            child: filtered.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Belum ada laporan atau usulan.\nTekan tombol + Buat Laporan di bawah.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Color(0xFF64748B)),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 80),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final item = filtered[index];
-                      final jenis =
-                          item['jenis_laporan'] ?? 'Laporan Kerusakan';
-                      final isUsulan = jenis == 'Usulan Barang';
-                      final status = item['status'] ?? 'Menunggu';
-                      final foto = (item['foto_bukti'] ?? '').toString();
-                      final tanggapan = (item['tanggapan_sarpras'] ?? '')
-                          .toString();
-
-                      return Card(
-                        elevation: 0,
-                        color: Colors.white,
-                        margin: const EdgeInsets.only(bottom: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: const BorderSide(color: Color(0xFFE2E8F0)),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: isUsulan
-                                          ? const Color(0x1F2563EB)
-                                          : const Color(0x1FDC2626),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      isUsulan ? 'Usulan Barang' : 'Kerusakan',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: isUsulan
-                                            ? const Color(0xFF2563EB)
-                                            : const Color(0xFFDC2626),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _bgStatus(status),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      status,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: _warnaStatus(status),
-                                      ),
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Icon(
-                                    item['is_synced'] == 1
-                                        ? Icons.cloud_done
-                                        : Icons.cloud_off,
-                                    size: 18,
-                                    color: item['is_synced'] == 1
-                                        ? Colors.teal
-                                        : Colors.grey,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                isUsulan
-                                    ? "${item['nama_barang']} (${item['jumlah']} unit)"
-                                    : "${item['nama_barang']}",
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                "Lokasi: ${item['nama_lokasi']}",
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF0F766E),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                item['deskripsi'] ?? '',
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                "Oleh: ${item['nama_pelapor']} (${item['peran_pelapor']}) • ${item['tanggal_lapor']}",
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF64748B),
-                                ),
-                              ),
-                              if (tanggapan.isNotEmpty) ...[
-                                const SizedBox(height: 10),
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF1F5F9),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    "Respon Sarpras: $tanggapan",
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontStyle: FontStyle.italic,
-                                      color: Color(0xFF334155),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                              if (foto.isNotEmpty || widget.isAdminSarpras) ...[
-                                const SizedBox(height: 10),
-                                Row(
-                                  children: [
-                                    if (foto.isNotEmpty)
-                                      OutlinedButton.icon(
-                                        onPressed: () => _lihatFoto(foto),
-                                        icon: const Icon(
-                                          Icons.image_outlined,
-                                          size: 18,
-                                        ),
-                                        label: const Text('Foto Bukti'),
-                                      ),
-                                    const Spacer(),
-                                    if (widget.isAdminSarpras)
-                                      FilledButton.icon(
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: const Color(
-                                            0xFF0F766E,
-                                          ),
-                                        ),
-                                        onPressed: () =>
-                                            _tindakLanjutDialog(item),
-                                        icon: const Icon(
-                                          Icons.edit_note_rounded,
-                                          size: 18,
-                                        ),
-                                        label: const Text('Tindak Lanjuti'),
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            ],
+            child: RefreshIndicator(
+              onRefresh: _jalankanSync,
+              child: filtered.isEmpty
+                  ? ListView(
+                      children: const [
+                        SizedBox(height: 140),
+                        Center(
+                          child: Text(
+                            'Belum ada laporan atau usulan.\nTekan tombol + Buat Laporan atau tarik layar ke bawah.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Color(0xFF64748B)),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ],
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 80),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final item = filtered[index];
+                        final jenis =
+                            item['jenis_laporan'] ?? 'Laporan Kerusakan';
+                        final isUsulan = jenis == 'Usulan Barang';
+                        final status = item['status'] ?? 'Menunggu';
+                        final foto = (item['foto_bukti'] ?? '').toString();
+                        final tanggapan = (item['tanggapan_sarpras'] ?? '')
+                            .toString();
+
+                        return Card(
+                          elevation: 0,
+                          color: Colors.white,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: isUsulan
+                                            ? const Color(0x1F2563EB)
+                                            : const Color(0x1FDC2626),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        isUsulan
+                                            ? 'Usulan Barang'
+                                            : 'Kerusakan',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: isUsulan
+                                              ? const Color(0xFF2563EB)
+                                              : const Color(0xFFDC2626),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _bgStatus(status),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        status,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: _warnaStatus(status),
+                                        ),
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Icon(
+                                      item['is_synced'] == 1
+                                          ? Icons.cloud_done
+                                          : Icons.cloud_off,
+                                      size: 18,
+                                      color: item['is_synced'] == 1
+                                          ? Colors.teal
+                                          : Colors.grey,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  isUsulan
+                                      ? "${item['nama_barang']} (${item['jumlah']} unit)"
+                                      : "${item['nama_barang']}",
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  "Lokasi: ${item['nama_lokasi']}",
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0F766E),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  item['deskripsi'] ?? '',
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  "Oleh: ${item['nama_pelapor']} (${item['peran_pelapor']}) • ${item['tanggal_lapor']}",
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                                if (tanggapan.isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      "Respon Sarpras: $tanggapan",
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontStyle: FontStyle.italic,
+                                        color: Color(0xFF334155),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                if (foto.isNotEmpty ||
+                                    widget.isAdminSarpras) ...[
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    children: [
+                                      if (foto.isNotEmpty)
+                                        OutlinedButton.icon(
+                                          onPressed: () => _lihatFoto(foto),
+                                          icon: const Icon(
+                                            Icons.image_outlined,
+                                            size: 18,
+                                          ),
+                                          label: const Text('Foto Bukti'),
+                                        ),
+                                      const Spacer(),
+                                      if (widget.isAdminSarpras)
+                                        FilledButton.icon(
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: const Color(
+                                              0xFF0F766E,
+                                            ),
+                                          ),
+                                          onPressed: () =>
+                                              _tindakLanjutDialog(item),
+                                          icon: const Icon(
+                                            Icons.edit_note_rounded,
+                                            size: 18,
+                                          ),
+                                          label: const Text('Tindak Lanjuti'),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
           ),
         ],
       ),
