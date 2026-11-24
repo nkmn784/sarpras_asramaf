@@ -1,5 +1,6 @@
-import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
@@ -7,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../database/database_helper.dart';
 import '../models/lokasi.dart';
 import '../models/item_inventaris.dart';
+import '../services/cloudinary_service.dart';
 import '../services/sync_service.dart';
 
 class TambahPengaduanPage extends StatefulWidget {
@@ -30,7 +32,8 @@ class _TambahPengaduanPageState extends State<TambahPengaduanPage> {
   List<ItemInventaris> daftarBarangLokasi = [];
   ItemInventaris? barangTerpilih;
 
-  File? _fotoBukti;
+  XFile? _fotoBukti;
+  Uint8List? _fotoBytes;
   bool _isSaving = false;
 
   @override
@@ -67,9 +70,12 @@ class _TambahPengaduanPageState extends State<TambahPengaduanPage> {
   Future<void> _ambilFoto(ImageSource source) async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: source, imageQuality: 70);
-    if (picked != null && mounted) {
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      if (!mounted) return;
       setState(() {
-        _fotoBukti = File(picked.path);
+        _fotoBukti = picked;
+        _fotoBytes = bytes;
       });
     }
   }
@@ -112,6 +118,12 @@ class _TambahPengaduanPageState extends State<TambahPengaduanPage> {
         ? "${lokasiTerpilih!.kodeRuangan} - ${lokasiTerpilih!.namaLokasi}"
         : 'Area Umum Asrama';
 
+    String pathFotoFinal = _fotoBukti?.path ?? '';
+    if (kIsWeb && _fotoBukti != null) {
+      final urlCloud = await CloudinaryService.uploadFoto(_fotoBukti!);
+      pathFotoFinal = urlCloud ?? '';
+    }
+
     final row = {
       'id': const Uuid().v4(),
       'jenis_laporan': jenisLaporan,
@@ -121,22 +133,23 @@ class _TambahPengaduanPageState extends State<TambahPengaduanPage> {
       'nama_barang': namaBarangController.text.trim(),
       'jumlah': int.tryParse(jumlahController.text.trim()) ?? 1,
       'deskripsi': deskripsiController.text.trim(),
-      'foto_bukti': _fotoBukti?.path ?? '',
+      'foto_bukti': pathFotoFinal,
       'tanggal_lapor': _waktuSekarang(),
       'status': 'Menunggu',
       'tanggapan_sarpras': '',
-      'is_synced': 0,
+      'is_synced': kIsWeb ? 1 : 0,
     };
 
     await DatabaseHelper.instance.insertLaporanWarga(row);
 
-    // Otomatis kirim ke Cloud jika perangkat terhubung ke internet
-    try {
-      await SyncService.syncSemuaData().timeout(
-        const Duration(seconds: 8),
-        onTimeout: () {},
-      );
-    } catch (_) {}
+    if (!kIsWeb) {
+      try {
+        await SyncService.syncSemuaData().timeout(
+          const Duration(seconds: 8),
+          onTimeout: () {},
+        );
+      } catch (_) {}
+    }
 
     if (!mounted) return;
     setState(() => _isSaving = false);
@@ -200,7 +213,6 @@ class _TambahPengaduanPageState extends State<TambahPengaduanPage> {
             ],
           ),
           const SizedBox(height: 16),
-
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -325,31 +337,33 @@ class _TambahPengaduanPageState extends State<TambahPengaduanPage> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _ambilFoto(ImageSource.camera),
-                        icon: const Icon(Icons.camera_alt_outlined),
-                        label: const Text('Kamera'),
+                    if (!kIsWeb) ...[
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _ambilFoto(ImageSource.camera),
+                          icon: const Icon(Icons.camera_alt_outlined),
+                          label: const Text('Kamera'),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
+                      const SizedBox(width: 10),
+                    ],
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () => _ambilFoto(ImageSource.gallery),
                         icon: const Icon(Icons.photo_library_outlined),
-                        label: const Text('Galeri'),
+                        label: Text(kIsWeb ? 'Pilih Foto' : 'Galeri'),
                       ),
                     ),
                   ],
                 ),
-                if (_fotoBukti != null) ...[
+                if (_fotoBytes != null) ...[
                   const SizedBox(height: 12),
                   Stack(
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.file(
-                          _fotoBukti!,
+                        child: Image.memory(
+                          _fotoBytes!,
                           height: 160,
                           width: double.infinity,
                           fit: BoxFit.cover,
@@ -362,7 +376,10 @@ class _TambahPengaduanPageState extends State<TambahPengaduanPage> {
                           backgroundColor: Colors.black54,
                           child: IconButton(
                             icon: const Icon(Icons.close, color: Colors.white),
-                            onPressed: () => setState(() => _fotoBukti = null),
+                            onPressed: () => setState(() {
+                              _fotoBukti = null;
+                              _fotoBytes = null;
+                            }),
                           ),
                         ),
                       ),

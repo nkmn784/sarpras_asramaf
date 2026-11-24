@@ -1,11 +1,13 @@
-import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
 import '../models/item_inventaris.dart';
+import '../services/cloudinary_service.dart';
 
 class TambahPeminjamanPage extends StatefulWidget {
   const TambahPeminjamanPage({super.key});
@@ -24,7 +26,8 @@ class _TambahPeminjamanPageState extends State<TambahPeminjamanPage> {
   bool _inputManual = false;
 
   late DateTime _batasKembali;
-  File? _fotoJaminan;
+  XFile? _fotoJaminan;
+  Uint8List? _fotoBytes;
   bool _isSaving = false;
 
   @override
@@ -83,9 +86,12 @@ class _TambahPeminjamanPageState extends State<TambahPeminjamanPage> {
   Future<void> _ambilFotoJaminan(ImageSource source) async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: source, imageQuality: 70);
-    if (picked != null && mounted) {
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      if (!mounted) return;
       setState(() {
-        _fotoJaminan = File(picked.path);
+        _fotoJaminan = picked;
+        _fotoBytes = bytes;
       });
     }
   }
@@ -111,6 +117,12 @@ class _TambahPeminjamanPageState extends State<TambahPeminjamanPage> {
 
     setState(() => _isSaving = true);
 
+    String jaminanFinal = _fotoJaminan?.path ?? 'Tanpa Foto EKP';
+    if (kIsWeb && _fotoJaminan != null) {
+      final urlCloud = await CloudinaryService.uploadFoto(_fotoJaminan!);
+      jaminanFinal = urlCloud ?? 'Tanpa Foto EKP';
+    }
+
     final row = {
       'id': const Uuid().v4(),
       'nama_santri': namaSantriController.text.trim(),
@@ -121,9 +133,9 @@ class _TambahPeminjamanPageState extends State<TambahPeminjamanPage> {
       'nama_barang': namaBarangFinal,
       'tanggal_pinjam': _formatDateTime(DateTime.now()),
       'batas_kembali': _formatDateTime(_batasKembali),
-      'jaminan_ekp': _fotoJaminan?.path ?? 'Tanpa Foto EKP',
+      'jaminan_ekp': jaminanFinal,
       'status': 'Dipinjam',
-      'is_synced': 0,
+      'is_synced': kIsWeb ? 1 : 0,
     };
 
     await DatabaseHelper.instance.insertPeminjaman(row);
@@ -271,29 +283,32 @@ class _TambahPeminjamanPageState extends State<TambahPeminjamanPage> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _ambilFotoJaminan(ImageSource.camera),
-                        icon: const Icon(Icons.camera_alt_outlined),
-                        label: const Text('Foto EKP'),
+                    if (!kIsWeb) ...[
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              _ambilFotoJaminan(ImageSource.camera),
+                          icon: const Icon(Icons.camera_alt_outlined),
+                          label: const Text('Foto EKP'),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
+                      const SizedBox(width: 10),
+                    ],
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () => _ambilFotoJaminan(ImageSource.gallery),
                         icon: const Icon(Icons.photo_library_outlined),
-                        label: const Text('Galeri'),
+                        label: Text(kIsWeb ? 'Pilih Foto EKP' : 'Galeri'),
                       ),
                     ),
                   ],
                 ),
-                if (_fotoJaminan != null) ...[
+                if (_fotoBytes != null) ...[
                   const SizedBox(height: 12),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.file(
-                      _fotoJaminan!,
+                    child: Image.memory(
+                      _fotoBytes!,
                       height: 150,
                       width: double.infinity,
                       fit: BoxFit.cover,

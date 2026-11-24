@@ -1,6 +1,7 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../database/database_helper.dart';
 import 'tambah_peminjaman_page.dart';
@@ -81,7 +82,21 @@ class _PeminjamanPageState extends State<PeminjamanPage> {
               ),
               child: pathFoto.startsWith('http')
                   ? Image.network(pathFoto, fit: BoxFit.contain)
-                  : Image.file(File(pathFoto), fit: BoxFit.contain),
+                  : FutureBuilder<Uint8List>(
+                      future: XFile(pathFoto).readAsBytes(),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData) {
+                          return Image.memory(
+                            snapshot.data!,
+                            fit: BoxFit.contain,
+                          );
+                        }
+                        return const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: CircularProgressIndicator(),
+                        );
+                      },
+                    ),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context),

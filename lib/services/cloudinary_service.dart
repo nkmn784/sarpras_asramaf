@@ -1,37 +1,36 @@
-import 'dart:io';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 class CloudinaryService {
-  // TODO: Ganti dengan data akun Cloudinary Anda nanti
+  // Pertahankan cloudName dan uploadPreset asli milikmu di bawah ini:
   static const String cloudName = 'qytkinqe';
   static const String uploadPreset = 'ml_default';
 
-  // Fungsi untuk melempar file foto dari SQLite ke Cloudinary
-  static Future<String?> uploadFoto(File imageFile) async {
+  static Future<String?> uploadFoto(XFile imageFile) async {
     try {
       final url = Uri.parse(
         'https://api.cloudinary.com/v1_1/$cloudName/image/upload',
       );
+      final bytes = await imageFile.readAsBytes();
+      final namaFile = imageFile.name.isNotEmpty ? imageFile.name : 'foto.jpg';
 
       final request = http.MultipartRequest('POST', url)
         ..fields['upload_preset'] = uploadPreset
-        ..files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+        ..files.add(
+          http.MultipartFile.fromBytes('file', bytes, filename: namaFile),
+        );
 
       final response = await request.send();
-      final responseData = await response.stream.bytesToString();
-      final data = json.decode(responseData);
-
       if (response.statusCode == 200) {
-        // Jika berhasil, kembalikan URL link foto yang sudah online
-        return data['secure_url'];
-      } else {
-        print('Gagal upload: ${data['error']['message']}');
-        return null;
+        final responseData = await response.stream.bytesToString();
+        final jsonMap = jsonDecode(responseData);
+        return jsonMap['secure_url'] as String?;
       }
+      return null;
     } catch (e) {
-      print('Terjadi kesalahan koneksi: $e');
+      print('Gagal upload ke Cloudinary: $e');
       return null;
     }
   }

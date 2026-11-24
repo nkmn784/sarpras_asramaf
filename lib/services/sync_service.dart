@@ -1,6 +1,6 @@
-import 'dart:io';
-
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../database/database_helper.dart';
@@ -11,6 +11,7 @@ class SyncService {
   static final dbHelper = DatabaseHelper.instance;
 
   static Future<void> syncSemuaData() async {
+    if (kIsWeb) return;
     final db = await dbHelper.database;
     await _syncUp(db);
     await _syncDown(db);
@@ -129,7 +130,7 @@ class SyncService {
         String jaminan = (map['jaminan_ekp'] ?? '').toString();
         if (jaminan.contains('/') && !jaminan.startsWith('http')) {
           final urlCloudinary = await CloudinaryService.uploadFoto(
-            File(jaminan),
+            XFile(jaminan),
           );
           if (urlCloudinary != null) jaminan = urlCloudinary;
         }
@@ -167,7 +168,7 @@ class SyncService {
       try {
         String foto = (map['foto_bukti'] ?? '').toString();
         if (foto.contains('/') && !foto.startsWith('http')) {
-          final urlCloudinary = await CloudinaryService.uploadFoto(File(foto));
+          final urlCloudinary = await CloudinaryService.uploadFoto(XFile(foto));
           if (urlCloudinary != null) foto = urlCloudinary;
         }
 
