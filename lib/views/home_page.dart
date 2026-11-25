@@ -4,10 +4,11 @@ import 'package:uuid/uuid.dart';
 import '../database/database_helper.dart';
 import '../models/lokasi.dart';
 import '../services/excel_service.dart';
+import '../services/preference_service.dart';
 import '../services/sync_service.dart';
 import 'isi_ruangan_page.dart';
 import 'pencarian_barang_page.dart';
-import 'role_selection_page.dart';
+import 'pengaturan_page.dart';
 
 class HomePage extends StatefulWidget {
   final bool isAdminSarpras;
@@ -31,8 +32,15 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _refreshData();
-    _jalankanSync(senyap: true);
+    _inisialisasiBeranda();
+  }
+
+  Future<void> _inisialisasiBeranda() async {
+    await _refreshData();
+    final autoSync = await PreferenceService.getAutoSync();
+    if (autoSync) {
+      await _jalankanSync(senyap: true);
+    }
   }
 
   Future<void> _refreshData() async {
@@ -273,6 +281,39 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _konfirmasiHapusLokasi(Lokasi lokasi) async {
+    final setuju = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Hapus Ruangan?'),
+        content: Text(
+          'Ruangan "${lokasi.namaLokasi}" beserta seluruh barang di dalamnya akan dihapus permanen. Lanjutkan?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (setuju == true && lokasi.id != null) {
+      final idHapus = lokasi.id!;
+      await DatabaseHelper.instance.deleteLokasi(idHapus);
+      await SyncService.hapusDokumenCloud('lokasi', idHapus);
+      _refreshData();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -328,12 +369,15 @@ class _HomePageState extends State<HomePage> {
                   ),
           ),
           IconButton(
-            tooltip: 'Ganti Peran',
-            icon: const Icon(Icons.swap_horiz_rounded),
+            tooltip: 'Pengaturan & Akun',
+            icon: const Icon(Icons.settings_rounded, color: Color(0xFF334155)),
             onPressed: () {
-              Navigator.pushReplacement(
+              Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const RoleSelectionPage()),
+                MaterialPageRoute(
+                  builder: (_) =>
+                      PengaturanPage(isAdminSarpras: widget.isAdminSarpras),
+                ),
               );
             },
           ),
@@ -380,7 +424,6 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 12),
 
-            // Bilah Akses Cepat Pencarian Global
             InkWell(
               onTap: () => _bukaPencarian(),
               borderRadius: BorderRadius.circular(14),
@@ -545,17 +588,7 @@ class _HomePageState extends State<HomePage> {
                                   Icons.delete_outline,
                                   color: Colors.redAccent,
                                 ),
-                                onPressed: () async {
-                                  final idHapus = lokasi.id!;
-                                  await DatabaseHelper.instance.deleteLokasi(
-                                    idHapus,
-                                  );
-                                  await SyncService.hapusDokumenCloud(
-                                    'lokasi',
-                                    idHapus,
-                                  );
-                                  _refreshData();
-                                },
+                                onPressed: () => _konfirmasiHapusLokasi(lokasi),
                               ),
                               const Icon(Icons.chevron_right_rounded),
                             ],
