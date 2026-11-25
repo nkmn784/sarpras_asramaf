@@ -6,6 +6,7 @@ import '../models/lokasi.dart';
 import '../services/excel_service.dart';
 import '../services/sync_service.dart';
 import 'isi_ruangan_page.dart';
+import 'pencarian_barang_page.dart';
 import 'role_selection_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -58,6 +59,19 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     }
+  }
+
+  Future<void> _bukaPencarian({String filterKondisiAwal = 'Semua'}) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PencarianBarangPage(
+          isAdminSarpras: widget.isAdminSarpras,
+          filterKondisiAwal: filterKondisiAwal,
+        ),
+      ),
+    );
+    _refreshData();
   }
 
   Future<void> _prosesEkspor(JenisEksporExcel jenis) async {
@@ -279,6 +293,11 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Cari Barang Lintas Ruangan',
+            onPressed: () => _bukaPencarian(),
+            icon: const Icon(Icons.search_rounded, color: Color(0xFF0F766E)),
+          ),
           if (widget.isAdminSarpras)
             IconButton(
               tooltip: 'Ekspor Excel (.xlsx)',
@@ -347,16 +366,61 @@ class _HomePageState extends State<HomePage> {
                     label: 'Total Unit',
                     value: '${ringkasan['totalUnit']}',
                     icon: Icons.inventory_2,
+                    onTap: () => _bukaPencarian(filterKondisiAwal: 'Semua'),
                   ),
                   _StatItem(
                     label: 'Perlu Servis',
                     value: '${ringkasan['unitRusak']}',
                     icon: Icons.build_circle,
+                    onTap: () =>
+                        _bukaPencarian(filterKondisiAwal: 'Perlu Servis'),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+
+            // Bilah Akses Cepat Pencarian Global
+            InkWell(
+              onTap: () => _bukaPencarian(),
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.search_rounded,
+                      color: Color(0xFF0F766E),
+                      size: 20,
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Cari kode barang (ITM-...), nama aset, atau cek rusak...',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.tune_rounded,
+                      color: Color(0xFF94A3B8),
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
 
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -532,32 +596,41 @@ class _StatItem extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
+  final VoidCallback? onTap;
 
   const _StatItem({
     required this.label,
     required this.value,
     required this.icon,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, color: Colors.white70, size: 22),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          children: [
+            Icon(icon, color: Colors.white70, size: 22),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ],
         ),
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white70, fontSize: 12),
-        ),
-      ],
+      ),
     );
   }
 }
