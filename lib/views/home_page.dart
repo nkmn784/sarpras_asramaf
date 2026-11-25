@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
 import '../models/lokasi.dart';
+import '../services/excel_service.dart';
 import '../services/sync_service.dart';
 import 'isi_ruangan_page.dart';
 import 'role_selection_page.dart';
@@ -24,6 +25,7 @@ class _HomePageState extends State<HomePage> {
     'pinjamAktif': 0,
   };
   bool _isSyncing = false;
+  bool _isExporting = false;
 
   @override
   void initState() {
@@ -56,6 +58,139 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     }
+  }
+
+  Future<void> _prosesEkspor(JenisEksporExcel jenis) async {
+    if (_isExporting) return;
+    setState(() => _isExporting = true);
+    try {
+      final sukses = await ExcelService.eksporLaporan(jenis);
+      if (!mounted) return;
+      if (sukses) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('File Excel berhasil dibuat!')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Gagal membuat Excel: $e')));
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  void _tampilkanMenuEkspor() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Ekspor Rekap ke Excel (.xlsx)',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Pilih jenis laporan spreadsheet yang ingin diunduh atau dibagikan:',
+              style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              leading: const CircleAvatar(
+                backgroundColor: Color(0x1A0F766E),
+                child: Icon(
+                  Icons.library_books_rounded,
+                  color: Color(0xFF0F766E),
+                ),
+              ),
+              title: const Text(
+                'Rekap Lengkap (4 Sheet)',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: const Text(
+                'Inventaris, Inspeksi, Peminjaman, & Laporan Warga',
+                style: TextStyle(fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _prosesEkspor(JenisEksporExcel.semuaLengkap);
+              },
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              leading: const CircleAvatar(
+                backgroundColor: Color(0x1A2563EB),
+                child: Icon(
+                  Icons.inventory_2_rounded,
+                  color: Color(0xFF2563EB),
+                ),
+              ),
+              title: const Text(
+                'Inventaris Barang Saja',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: const Text(
+                'Daftar kode barang, jumlah unit, dan kondisi per ruangan',
+                style: TextStyle(fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _prosesEkspor(JenisEksporExcel.inventarisSaja);
+              },
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              leading: const CircleAvatar(
+                backgroundColor: Color(0x1AD97706),
+                child: Icon(Icons.campaign_rounded, color: Color(0xFFD97706)),
+              ),
+              title: const Text(
+                'Laporan Kerusakan & Usulan',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: const Text(
+                'Rekap aduan warga, usulan kebutuhan, & status tindak lanjut',
+                style: TextStyle(fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _prosesEkspor(JenisEksporExcel.laporanWargaSaja);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _tambahLokasi() {
@@ -144,6 +279,21 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         actions: [
+          if (widget.isAdminSarpras)
+            IconButton(
+              tooltip: 'Ekspor Excel (.xlsx)',
+              onPressed: _isExporting ? null : _tampilkanMenuEkspor,
+              icon: _isExporting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(
+                      Icons.table_view_rounded,
+                      color: Color(0xFF0F766E),
+                    ),
+            ),
           IconButton(
             tooltip: 'Sinkronisasi Cloud',
             onPressed: _isSyncing ? null : () => _jalankanSync(senyap: false),
